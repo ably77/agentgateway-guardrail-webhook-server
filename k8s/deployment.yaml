@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    account: ai-guardrail
+  name: ai-guardrail
+  namespace: agentgateway-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-guardrail-webhook
+  namespace: agentgateway-system
+  labels:
+    app: ai-guardrail
+spec:
+  selector:
+    app: ai-guardrail-webhook
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-guardrail-webhook
+  namespace: agentgateway-system
+  labels:
+    app: ai-guardrail
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-guardrail-webhook
+  template:
+    metadata:
+      labels:
+        app: ai-guardrail-webhook
+    spec:
+      serviceAccountName: ai-guardrail
+      containers:
+      - name: webhook
+        image: ably7/ai-guardrail-webhook-server:0.1.1
+        ports:
+        - containerPort: 8000
+        env:
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-secret
+              key: Authorization
+        - name: OPENAI_MODEL
+          value: "gpt-4o-mini"
+        - name: REQUEST_GUARDRAIL_PROMPT
+          valueFrom:
+            configMapKeyRef:
+              name: guardrail-policy
+              key: request-prompt
+        - name: RESPONSE_GUARDRAIL_PROMPT
+          valueFrom:
+            configMapKeyRef:
+              name: guardrail-policy
+              key: response-prompt
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
